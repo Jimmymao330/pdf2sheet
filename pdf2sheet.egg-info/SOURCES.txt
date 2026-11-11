@@ -1,0 +1,9 @@
+README.md
+pdf_to_sheet.py
+pyproject.toml
+pdf2sheet.egg-info/PKG-INFO
+pdf2sheet.egg-info/SOURCES.txt
+pdf2sheet.egg-info/dependency_links.txt
+pdf2sheet.egg-info/entry_points.txt
+pdf2sheet.egg-info/requires.txt
+pdf2sheet.egg-info/top_level.txt

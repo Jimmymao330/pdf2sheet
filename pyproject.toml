@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pdf2sheet"
+version = "0.1.0"
+description = "PDF 列管表 → docling JSON → Google 試算表"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "docling",
+    "pypdfium2",
+    "certifi",
+]
+
+[project.optional-dependencies]
+# macOS 掃描型 PDF 使用內建文字辨識
+mac-ocr = ["ocrmac"]
+
+[project.scripts]
+pdf2sheet = "pdf_to_sheet:main"
+
+[tool.setuptools]
+py-modules = ["pdf_to_sheet"]

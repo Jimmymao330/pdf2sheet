@@ -1,0 +1,2 @@
+[console_scripts]
+pdf2sheet = pdf_to_sheet:main

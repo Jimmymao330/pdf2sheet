@@ -1,0 +1,6 @@
+docling
+pypdfium2
+certifi
+
+[mac-ocr]
+ocrmac
