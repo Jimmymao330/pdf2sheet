@@ -1,18 +1,27 @@
 # PDF 列管表 → Google 試算表
 
-把資料夾裡的會議列管表 PDF，自動整理成 Google 試算表：
+從會議資料 PDF 中，自動找出「**歷次會議主席裁（指）示暨決議事項執行情形分辦表**」，整理成 Google 試算表：
 
 | 列管案號 | 主席裁示 | 承辦單位 | 最新辦理情形 | 列管建議 | 來源 PDF 名稱 |
 |---|---|---|---|---|---|
 
 處理流程：
 
-1. **解析 PDF**：以 [docling](https://github.com/docling-project/docling) 把每份 PDF 轉成 JSON（存在 `<PDF 資料夾>/_docling_json/`）。
-2. **整理資料**：
+1. **找出分辦表頁面**：只讀 PDF 的文字層，不用 AI 模型，160 頁約 1 秒。不需手動分割 PDF，分辦表在第幾頁也沒關係。
+2. **解析表格**：只把分辦表那幾頁交給 [docling](https://github.com/docling-project/docling)，轉成 JSON（存在 `<PDF 資料夾>/_docling_json/`）。
+3. **整理資料**：
    - 合併跨頁斷開的表格。
    - 依 PDF 原本的換行分段。
    - 半形標點轉全形，中文與英數字之間加空格。
-3. **寫入試算表**：資料送到 Google Apps Script，由它寫入試算表，不需要 Google Cloud 帳號或金鑰。
+4. **寫入試算表**：資料送到 Google Apps Script，由它寫入試算表，不需要 Google Cloud 帳號或金鑰。
+
+**最快上手**（已完成安裝與試算表設定後）：
+
+```bash
+pdf2sheet init                  # 首次使用：輸入網址與密碼，會自動測試連線
+pdf2sheet ~/Desktop/會議資料 --dry-run   # 先檢查
+pdf2sheet ~/Desktop/會議資料             # 寫入試算表
+```
 
 ---
 
@@ -21,6 +30,7 @@
 - [檔案說明](#檔案說明)
 - [一、設定 Google 試算表（Mac、Windows 相同，只需做一次）](#一設定-google-試算表macwindows-相同只需做一次)
 - [快速安裝：用 pipx 安裝成 pdf2sheet 指令（推薦）](#快速安裝用-pipx-安裝成-pdf2sheet-指令推薦)
+- [設定網址與密碼：pdf2sheet init](#設定網址與密碼pdf2sheet-init)
 - [二、Mac 安裝與使用](#二mac-安裝與使用)
 - [三、Windows 安裝與使用](#三windows-安裝與使用)
 - [四、指令選項](#四指令選項)
@@ -34,7 +44,8 @@
 
 | 檔案 | 用途 |
 |---|---|
-| `pdf_to_sheet.py` | 在電腦上執行：解析 PDF、整理資料、上傳 |
+| `pdf_to_sheet.py` | 在電腦上執行：找頁、解析 PDF、整理資料、上傳 |
+| `pyproject.toml` | 讓 pipx 把程式安裝成 `pdf2sheet` 指令 |
 | `Code.gs` | 貼進 Google 試算表的 Apps Script：接收資料並寫入 |
 
 ---
@@ -86,18 +97,49 @@ pipx install --editable --python 3.12 "$HOME\Documents\PDFtoSheet"
 **使用**
 
 ```bash
+pdf2sheet init                       # 第一次使用：設定網址與密碼
 pdf2sheet ~/Desktop/pdfs --dry-run
-pdf2sheet ~/Desktop/pdfs --webapp "https://script.google.com/macros/s/…/exec" --token "你的密碼"
+pdf2sheet ~/Desktop/pdfs
 ```
 
-指令選項與下方「四、指令選項」相同。網址與密碼也可以用環境變數設定（見二、三節的第 4 步）。
+指令選項與下方「四、指令選項」相同。
 
 **更新、移除**
 
 - 修改 `pdf_to_sheet.py`：因為用了 `--editable`，存檔後直接生效。
 - 修改 `pyproject.toml`（例如新增套件）：`pipx install --force --editable --python <同上> <專案路徑>`
 - 更新 docling：`pipx upgrade-all --include-injected` 或 `pipx runpip pdf2sheet install -U docling`
-- 移除：`pipx uninstall pdf2sheet`
+- 移除：`pipx uninstall pdf2sheet`（設定檔不會被刪除，位置見下一節）
+
+---
+
+## 設定網址與密碼：pdf2sheet init
+
+第一次使用時執行一次，之後就不必在指令後面加網址與密碼：
+
+```
+$ pdf2sheet init
+設定 pdf2sheet（直接按 Enter 保留目前的值）
+
+Apps Script 網頁應用程式網址：https://script.google.com/macros/s/…/exec
+密碼（與 Code.gs 的 TOKEN 相同，輸入時不顯示）：
+工作表名稱 [列管表]：
+
+測試連線…
+✓ 連線成功，已確認工作表「列管表」
+
+已儲存設定：/Users/<你>/.config/pdf2sheet/config.json
+```
+
+- 測試連線會實際呼叫 Apps Script 並驗證密碼。**密碼錯誤或網址錯誤時不會存檔**。如果工作表不存在，會順便建立並加上表頭。
+- 設定檔位置：
+  - Mac：`~/.config/pdf2sheet/config.json`（權限設為只有自己可讀）
+  - Windows：`%APPDATA%\pdf2sheet\config.json`
+- 檢視目前設定（密碼會遮蔽）：`pdf2sheet init --show`
+- 修改設定：再執行一次 `pdf2sheet init`，不改的項目直接按 Enter。
+- 優先順序：指令參數 `--webapp` / `--token` / `--worksheet` ＞ 環境變數 `GAS_WEBAPP_URL` / `GAS_TOKEN` ＞ 設定檔。
+
+> 沒有用 pipx 安裝時，把 `pdf2sheet` 換成 `python pdf_to_sheet.py`，例如 `python pdf_to_sheet.py init`。
 
 ---
 
@@ -143,6 +185,12 @@ cd ~/Documents/PDFtoSheet
 source .venv/bin/activate
 ```
 
+第一次使用，先設定網址與密碼（說明見「[設定網址與密碼](#設定網址與密碼pdf2sheet-init)」）：
+
+```bash
+python pdf_to_sheet.py init
+```
+
 先試跑，不上傳，確認整理結果：
 
 ```bash
@@ -151,24 +199,6 @@ open ~/Desktop/pdfs/_docling_json/structured.csv
 ```
 
 確認沒問題後，寫入試算表：
-
-```bash
-python pdf_to_sheet.py ~/Desktop/pdfs \
-  --webapp "https://script.google.com/macros/s/…/exec" \
-  --token "你的密碼"
-```
-
-### 4. 省略網址與密碼（選用）
-
-把網址和密碼寫進 `~/.zshrc`，之後執行就不用每次輸入：
-
-```bash
-echo 'export GAS_WEBAPP_URL="https://script.google.com/macros/s/…/exec"' >> ~/.zshrc
-echo 'export GAS_TOKEN="你的密碼"' >> ~/.zshrc
-source ~/.zshrc
-```
-
-之後只要執行：
 
 ```bash
 python pdf_to_sheet.py ~/Desktop/pdfs
@@ -232,22 +262,20 @@ python pdf_to_sheet.py "$HOME\Desktop\pdfs" --dry-run
 start "$HOME\Desktop\pdfs\_docling_json\structured.csv"
 ```
 
-寫入試算表。PowerShell 的換行符號是反引號 `` ` ``：
+第一次使用，先設定網址與密碼：
 
 ```powershell
-python pdf_to_sheet.py "$HOME\Desktop\pdfs" `
-  --webapp "https://script.google.com/macros/s/…/exec" `
-  --token "你的密碼"
+python pdf_to_sheet.py init
 ```
 
-### 4. 省略網址與密碼（選用）
+先試跑，不上傳：
 
 ```powershell
-setx GAS_WEBAPP_URL "https://script.google.com/macros/s/…/exec"
-setx GAS_TOKEN "你的密碼"
+python pdf_to_sheet.py "$HOME\Desktop\pdfs" --dry-run
+start "$HOME\Desktop\pdfs\_docling_json\structured.csv"
 ```
 
-設定後要**重新打開 PowerShell** 才會生效。之後只要執行：
+確認沒問題後，寫入試算表：
 
 ```powershell
 python pdf_to_sheet.py "$HOME\Desktop\pdfs"
@@ -258,14 +286,20 @@ python pdf_to_sheet.py "$HOME\Desktop\pdfs"
 ## 四、指令選項
 
 ```
-python pdf_to_sheet.py <PDF 資料夾> [選項]
+pdf2sheet init [--show] [--no-test]
+pdf2sheet <PDF 資料夾> [選項]
 ```
+
+（未用 pipx 安裝時，把 `pdf2sheet` 換成 `python pdf_to_sheet.py`）
 
 | 選項 | 說明 |
 |---|---|
-| `--webapp URL` | Apps Script 網址（`…/exec`），或設環境變數 `GAS_WEBAPP_URL` |
-| `--token 密碼` | 與 `Code.gs` 中 `TOKEN` 相同，或設環境變數 `GAS_TOKEN` |
-| `--worksheet 名稱` | 寫入的工作表，預設「列管表」，不存在會自動建立 |
+| `--pages auto` | **預設**。自動找出分辦表所在頁面，只解析那幾頁 |
+| `--pages 11-17` | 手動指定頁碼（PDF 檢視器顯示的頁碼，不是頁尾印的頁碼），可寫 `11-17,20`。會套用到資料夾內每份 PDF |
+| `--pages all` | 解析整份 PDF（很慢，只在分辦表格式特殊時使用） |
+| `--webapp URL` | 暫時改用其他 Apps Script 網址（平常用 `init` 設定即可） |
+| `--token 密碼` | 暫時改用其他密碼 |
+| `--worksheet 名稱` | 暫時寫入其他工作表，不存在會自動建立 |
 | `--mode upsert` | **預設**。同一份 PDF 的同一案號會覆寫原本那列，其餘新增 |
 | `--mode append` | 全部新增在最後面，不檢查重複 |
 | `--mode replace` | 清空工作表後重新寫入 |
@@ -281,7 +315,7 @@ python pdf_to_sheet.py <PDF 資料夾> [選項]
 
 | 檔案 | 內容 |
 |---|---|
-| `<PDF 名稱>.json` | docling 原始解析結果；PDF 沒改動就不會重新解析 |
+| `<PDF 名稱>.json` | docling 解析結果（只含分辦表頁面）；PDF 與頁碼都沒變就不會重新解析 |
 | `structured.csv` | 整理後的表格，可用 Excel / Numbers 開啟檢查 |
 | `structured.json` | 同上，另含每筆案件來自哪幾頁（`_pages`） |
 
@@ -289,12 +323,35 @@ python pdf_to_sheet.py <PDF 資料夾> [選項]
 
 ## 五、資料整理規則
 
-### 跨頁表格合併
+### 自動找出分辦表頁面
 
-- PDF 每頁的表格會依序接起來，每頁重複出現的表頭會自動略過。
-- 新頁開頭若是**序號與案號都空白**的列，就是上一筆案件的延續，會合併回同一格。
-- 雙列表頭（例如「列管」／「案號」）會自動上下串接後辨識，不依賴固定欄位順序。
-- 如果某筆案件跨頁，執行時會顯示「案號 xxx 跨頁合併（第 2、3、4 頁）」。
+會議資料常有 160 頁，但分辦表只有不到 10 頁，而且每次位置不同。程式會先用 PDF 的文字層快速掃過每一頁（不經 AI 模型），再只把找到的頁面交給 docling：
+
+1. **起始頁**：同時有標題「主席裁（指）示暨決議事項執行情形」**和**表頭關鍵字「案號、承辦、辦理情形」的頁面。
+   - 目錄頁、議程頁、會議紀錄也會提到這個標題，但沒有表頭，所以不會被誤選。
+2. **續頁**：往後逐頁檢查，**頁首重複出現分辦表表頭**的頁面都算進來。沒有表頭、但有「除管／續管」勾選框或列管案號的頁面也算，除非頁首是新章節（例如「肆、工作報告」）。
+3. 遇到第一個不符合的頁面就停止。
+
+執行時會顯示找到的頁碼，例如：
+
+```
+INFO 會議手冊.pdf：分辦表位於第 11-17 頁
+```
+
+**請核對這個頁碼**。找錯時，用 `--pages` 手動指定。找不到分辦表的 PDF 會跳過並提示，不影響其他檔案。
+
+> 掃描型 PDF 沒有文字層，無法自動找頁，請用 `--pages` 指定，並加上 `--ocr`。
+
+### 案件分界與跨頁合併
+
+docling 有時會把同一案件切成好幾列，或把案號放到錯的列，導致前後案件的文字互相混入。因此程式不採用 docling 的列切法，改用**列管案號在頁面上的位置**切分案件：
+
+- 每個列管案號（或序號）所在的高度，就是一個案件的起點。
+- 每一欄的每一行文字，依它的高度歸到上方最近的案號。
+- 頁面最上方、在第一個案號之前的內容，屬於上一頁延續的案件。
+- docling 只用來判斷欄位位置與表格範圍；每頁重複的表頭、頁碼會自動略過。
+- 結果會與 docling 的表格核對。如果漏了案號，或文字差異過大（例如 PDF 文字層損壞），會自動改回 docling 的列切法，並顯示警告。
+- 執行時會顯示「以版面位置切分案件」；跨頁的案件會顯示「案號 xxx 跨頁合併（第 12、13 頁）」。
 
 ### 分行
 
@@ -314,7 +371,10 @@ python pdf_to_sheet.py <PDF 資料夾> [選項]
 ### 欄位格式
 
 - **列管案號**：純數字（`1150409`）存成數字；含連字號（`1140905-2`）保留文字，避免被試算表誤判成日期。
-- **列管建議**：`█除管 □續管` 只保留勾選的項目，即「除管」。
+- **列管建議**：只保留勾選的項目，例如 `█除管 □續管`、`▓除管 □續管` 都會變成「除管」。
+  - `□ ☐ ○` 等空心框視為未勾選；其他填滿的符號（`█ ▓ ■ ☑ ✔ ●` 等）都視為已勾選。
+  - 如果勾選框是畫出來的圖形、不在文字層裡，程式會比較兩個選項左側方框的深淺來判斷。
+  - 無法判斷時保留原文，並在執行時提示。
 - **承辦單位**：合併成一行。
 
 ---
@@ -328,7 +388,7 @@ python pdf_to_sheet.py <PDF 資料夾> [選項]
 - **掃描型 PDF**：加 `--ocr`。無論有沒有 OCR，換行判斷都需要 PDF 有文字層；沒有文字層時改以文字規則分段，準確度較低。
 - **分行判斷的限制**：如果段落最後一行剛好寫滿整列，會被當成自動折行而接上下一段。條列符號與日期小標題不受影響。
 - **單格上限**：Google 試算表一格最多 50,000 字，超過會截斷並在執行時提示。
-- **密碼外流時**：修改 `Code.gs` 的 `TOKEN`，重新部署（版本選「新版本」），並更新電腦上的環境變數。
+- **密碼外流時**：修改 `Code.gs` 的 `TOKEN`，重新部署（版本選「新版本」），並在每台電腦重新執行 `pdf2sheet init`。
 - **Intel Mac**：新版 PyTorch 已不提供 Intel Mac 版本，docling 可能無法安裝，建議改用 Apple 晶片的 Mac 或 Windows。
 
 ---
@@ -350,7 +410,16 @@ Homebrew 的 Python 不允許直接安裝套件，請依照「二、Mac 安裝�
 - 修改 `Code.gs` 後，確認已部署「**新版本**」。
 
 **`Apps Script 回報錯誤：token 錯誤`**
-`--token` 與 `Code.gs` 裡的 `TOKEN` 不一致。如果 `TOKEN` 有改過，記得重新部署。
+設定檔裡的密碼與 `Code.gs` 裡的 `TOKEN` 不一致。執行 `pdf2sheet init` 重新輸入；如果 `TOKEN` 有改過，記得重新部署。
+
+**`找不到「主席裁（指）示暨決議事項執行情形分辦表」，已略過`**
+- 這份 PDF 可能是掃描檔，或分辦表標題寫法不同。
+- 用 PDF 檢視器確認頁碼後，用 `--pages 11-17` 指定。
+- 一次處理多份 PDF 時，`--pages` 會套用到每一份，建議把這份 PDF 單獨放一個資料夾處理。
+
+**找到的頁數太多或太少**
+- 執行時加 `-v`，把顯示的頁碼與實際分辦表頁碼告訴維護者，以便調整判斷規則。
+- 暫時用 `--pages` 手動指定。
 
 **Windows 安裝 docling 時出現路徑過長的錯誤**
 以系統管理員身分開啟 PowerShell，執行下面這行，重新開機後再安裝：
